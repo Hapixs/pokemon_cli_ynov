@@ -1,32 +1,12 @@
 package main
 
 import (
-	"io/ioutil"
-	"log"
 	"pokemon_cli"
-	"strconv"
+	"time"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 )
-
-var app = tview.NewApplication()
-
-var pokemonsViewList = tview.NewList().ShowSecondaryText(true)
-var pokemons = castMapToSliceOf()
-
-var pokemonsSelectedViewList = tview.NewList()
-var pokemonsSelected = []pokemon_cli.Pokemon{}
-
-var pokemonsTrimedViewList = tview.NewList()
-var pokemonsTrimed = []pokemon_cli.Pokemon{}
-
-var pokeText = tview.NewTextView()
-var helpText = tview.NewTextView().SetText("(q) pour quitter \n(a) pour passer sur la liste de selection\n(e) pour passer sur la liste séléctionée")
-var pokemonAsciiArt = tview.NewTextView()
-
-var isSearching = false
-var trimSearch = ""
 
 func PrepareCliApp() {
 	app.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
@@ -43,57 +23,6 @@ func PrepareCliApp() {
 		}
 		return event
 	})
-}
-
-func PreparePokemonsViewList() {
-	pokemonsViewList.SetSelectedFunc(func(i int, s1, s2 string, r rune) {
-		pokemonsSelected = append(pokemonsSelected, pokemons[i])
-		updatePokeList(pokemonsSelected, pokemonsSelectedViewList)
-		pokemons = removeIndex(i, pokemons)
-		updatePokeList(pokemons, pokemonsViewList)
-		UpdateViewListIndex(i, *pokemonsViewList)
-	})
-	pokemonsViewList.SetChangedFunc(func(index int, name string, second_name string, shortcut rune) {
-		updatePokeText(pokemons[index])
-	})
-}
-
-func PreparePokemonsSelectedViewList() {
-	pokemonsSelectedViewList.SetSelectedFunc(func(i int, s1, s2 string, r rune) {
-		pokemons = append(pokemons, pokemonsSelected[i])
-		updatePokeList(pokemons, pokemonsViewList)
-		pokemonsSelected = removeIndex(i, pokemonsSelected)
-		updatePokeList(pokemonsSelected, pokemonsSelectedViewList)
-		if len(pokemonsSelected) <= 0 {
-			switchToSelectionPokemons()
-			return
-		}
-		UpdateViewListIndex(i, *pokemonsSelectedViewList)
-	})
-	pokemonsSelectedViewList.SetChangedFunc(func(index int, name string, second_name string, shortcut rune) {
-		updatePokeText(pokemonsSelected[index])
-	})
-
-}
-func PrepareTrimedViewList() {
-	pokemonsTrimedViewList.SetSelectedFunc(func(i int, s1, s2 string, r rune) {
-		pokemonsSelected = append(pokemonsSelected, pokemonsTrimed[i])
-		updatePokeList(pokemonsSelected, pokemonsSelectedViewList)
-		for index, p := range pokemons {
-			if p.Name == pokemonsTrimed[i].Name {
-				pokemons = removeIndex(index, pokemons)
-				updatePokeList(pokemons, pokemonsViewList)
-				break
-			}
-		}
-		pokemonsTrimed = removeIndex(i, pokemonsTrimed)
-		updatePokeList(pokemonsTrimed, pokemonsTrimedViewList)
-		UpdateViewListIndex(i, *pokemonsTrimedViewList)
-	})
-	pokemonsTrimedViewList.SetChangedFunc(func(index int, mainText, secondaryText string, shortcut rune) {
-		updatePokeText(pokemonsTrimed[index])
-	})
-
 }
 
 func UpdateViewListIndex(index int, viewList tview.List) {
@@ -113,52 +42,13 @@ func main() {
 	PreparePokemonsViewList()
 	PreparePokemonsSelectedViewList()
 	PrepareTrimedViewList()
-
-	updatePokeList(pokemons, pokemonsViewList)
-
+	UpdatePokeList(pokemons, pokemonsViewList)
 	switchToSelectionPokemons()
-
 	if err := app.SetRoot(flex, true).EnableMouse(false).Run(); err != nil {
 		panic(err)
 	}
 }
 
-func updatePokeText(pok pokemon_cli.Pokemon) {
-	pokeText.Clear()
-	pokeText = pokeText.SetText("\nName: " + pok.Name +
-		"\nHp: " + strconv.Itoa(pok.Hp) + "/" + strconv.Itoa(pok.MaxHp) +
-		"\nDégats: " + strconv.Itoa(pok.Dmg) +
-		"\nTypes: " + parseTabe(pok.Type))
-	pokemonAsciiArt.Clear()
-	pokemonAsciiArt.SetText(getPokemonImage(pok))
-}
-
-func updatePokeList(list []pokemon_cli.Pokemon, tList *tview.List) {
-	tList.Clear()
-	for _, pok := range list {
-		tList.AddItem(pok.Name, "", '*', nil)
-	}
-}
-
-func GetPokeCliLogo() string {
-	content, err := ioutil.ReadFile("assets/pokecouille.txt")
-
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	return string(content)
-}
-
-func getPokemonImage(pokemon pokemon_cli.Pokemon) string {
-	content, err := ioutil.ReadFile("assets/" + pokemon.Name + ".txt")
-
-	if err != nil {
-		return ""
-	}
-
-	return string(content)
-}
 func switchToSelectedPokemons() {
 	isSearching = false
 	if len(pokemonsSelected) <= 0 {
@@ -166,41 +56,37 @@ func switchToSelectedPokemons() {
 		return
 	}
 	flex.Clear()
-	app.SetRoot(flex.SetDirection(tview.FlexRow).
-		AddItem(tview.NewTextArea().SetText(GetPokeCliLogo()+"\n", false), 19, 1, false).
-		AddItem(tview.NewFlex().SetDirection(tview.FlexColumn).
-			AddItem(tview.NewFlex().SetDirection(tview.FlexRow).
-				AddItem(tview.NewTextView().SetText("Selection De pokemons"), 0, 0, false).
-				AddItem(pokemonsViewList.SetSelectedBackgroundColor(tcell.ColorAntiqueWhite), 0, 1, false), 0, 1, false).
-			AddItem(tview.NewFlex().SetDirection(tview.FlexRow).
-				AddItem(pokemonAsciiArt, 10, 1, false).
-				AddItem(pokeText, 0, 1, false), 0, 1, false).
-			AddItem(pokemonsSelectedViewList.SetSelectedBackgroundColor(tcell.ColorOrange), 0, 1, true).
-			AddItem(helpText, 0, 1, false), 0, 1, true), true)
-	updatePokeText(pokemonsSelected[0])
+	flex.SetDirection(tview.FlexRow)
+	flex.AddItem(BuildCliLogoItem(), 19, 1, false)
+	bodyFlex := tview.NewFlex().SetDirection(tview.FlexColumn)
+	bodyFlex.AddItem(BuildSelectionViewListItem(false).SetDirection(tview.FlexRow), 0, 1, false)
+	bodyFlex.AddItem(BuildPokemonInfoFlexItem().SetDirection(tview.FlexRow), 0, 1, false)
+	bodyFlex.AddItem(BuildSelectedViewListItem(true), 0, 1, true)
+	bodyFlex.AddItem(BuildHelpText(), 0, 1, false)
+	flex.AddItem(bodyFlex, 0, 1, true)
+	app.SetRoot(flex, true)
+	UpdatePokeText(pokemonsSelected[0])
 }
 
 func switchToSelectionPokemons() {
 	isSearching = false
 	flex.Clear()
-	app.SetRoot(flex.SetDirection(tview.FlexRow).
-		AddItem(tview.NewTextArea().SetText(GetPokeCliLogo()+"\n", false), 19, 1, false).
-		AddItem(tview.NewFlex().SetDirection(tview.FlexColumn).
-			AddItem(tview.NewFlex().SetDirection(tview.FlexRow).
-				AddItem(tview.NewTextView().SetText("Selection de Pokemons"), 0, 0, false).
-				AddItem(pokemonsViewList.SetSelectedBackgroundColor(tcell.ColorOrange), 0, 1, true), 0, 1, true).
-			AddItem(tview.NewFlex().SetDirection(tview.FlexRow).
-				AddItem(pokemonAsciiArt, 0, 1, false).
-				AddItem(pokeText, 0, 1, false), 0, 1, false).
-			AddItem(pokemonsSelectedViewList.SetSelectedBackgroundColor(tcell.ColorAntiqueWhite), 0, 1, false).
-			AddItem(helpText, 0, 1, true), 0, 6, true), true)
-	updatePokeText(pokemons[0])
+	flex.SetDirection(tview.FlexRow)
+	flex.AddItem(BuildCliLogoItem(), 19, 1, false)
+	bodyFlex := tview.NewFlex().SetDirection(tview.FlexColumn)
+	bodyFlex.AddItem(BuildSelectionViewListItem(true).SetDirection(tview.FlexRow), 0, 1, true)
+	bodyFlex.AddItem(BuildPokemonInfoFlexItem().SetDirection(tview.FlexRow), 0, 1, false)
+	bodyFlex.AddItem(BuildSelectedViewListItem(false), 0, 1, false)
+	bodyFlex.AddItem(BuildHelpText(), 0, 1, false)
+	flex.AddItem(bodyFlex, 0, 1, true)
+	app.SetRoot(flex, true)
+	UpdatePokeText(pokemons[0])
 }
 
 func switchToSearchPokemon(search bool) {
 	isSearching = search
 	flex.Clear()
-	updatePokeList(pokemonsTrimed, pokemonsTrimedViewList)
+	UpdatePokeList(pokemonsTrimed, pokemonsTrimedViewList)
 	app.SetRoot(flex.SetDirection(tview.FlexRow).
 		AddItem(tview.NewTextArea().SetText(GetPokeCliLogo()+"\n", false), 19, 1, false).
 		AddItem(tview.NewFlex().SetDirection(tview.FlexColumn).
@@ -219,6 +105,34 @@ func switchToSearchPokemon(search bool) {
 					switchToSearchPokemon(search)
 				}), 0, 1, search).
 				AddItem(pokemonsTrimedViewList.SetSelectedBackgroundColor(tcell.ColorOrange), 0, 1, !search), 0, 1, true), 0, 1, true), true)
+}
+
+func SwitchToCombatActionSelection() {
+
+	flex.Clear()
+	flex.SetDirection(tview.FlexRow)
+	flex.AddItem(BuildCliLogoItem(), 19, 1, false)
+	bodyFlex := tview.NewFlex().SetDirection(tview.FlexColumn)
+	bodyFlex.AddItem(tview.NewTextView().SetText("Le combat va commencer..."), 0, 1, true)
+	flex.AddItem(bodyFlex, 0, 1, true)
+	app.SetRoot(flex, true)
+
+	callTimer()
+
+	actionList := tview.NewList().AddItem("Attaquer", "", '*', func() {}).AddItem("Changer de pokemon", "", '*', func() {}).AddItem("Utiliser un objets", "", '*', func() {})
+	flex.Clear()
+	flex.SetDirection(tview.FlexRow)
+	flex.AddItem(BuildCliLogoItem(), 19, 1, false)
+	bodyFlex = tview.NewFlex().SetDirection(tview.FlexColumn)
+	bodyFlex.AddItem(actionList, 0, 1, true)
+	flex.AddItem(bodyFlex, 0, 1, true)
+	app.SetRoot(flex, true)
+
+}
+
+func callTimer() {
+	timer := time.NewTimer(time.Second)
+	<-timer.C
 }
 
 func trimByString(search string, list []pokemon_cli.Pokemon) []pokemon_cli.Pokemon {
