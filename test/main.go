@@ -1,8 +1,8 @@
 package main
 
 import (
+	"os"
 	"pokemon_cli"
-	"time"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
@@ -25,16 +25,6 @@ func PrepareCliApp() {
 	})
 }
 
-func UpdateViewListIndex(index int, viewList tview.List) {
-	if index >= len(pokemons)-1 {
-		pokemonsViewList.SetCurrentItem(len(pokemons) - 1)
-	} else if index > 0 {
-		pokemonsViewList.SetCurrentItem(index)
-	} else {
-		pokemonsViewList.SetCurrentItem(0)
-	}
-}
-
 var flex = tview.NewFlex()
 
 func main() {
@@ -49,90 +39,44 @@ func main() {
 	}
 }
 
-func switchToSelectedPokemons() {
-	isSearching = false
-	if len(pokemonsSelected) <= 0 {
-		switchToSelectionPokemons()
+var puser1 = pokemon_cli.PokemonUser{}
+var puser2 = pokemon_cli.PokemonUser{}
+
+var puser1Played = false
+
+func startCombat(user1 pokemon_cli.PokemonUser, user2 pokemon_cli.PokemonUser) {
+	puser1 = user1
+	puser2 = user2
+	startRound()
+}
+
+func startRound() {
+	if !puser1.Ai {
+		SwitchToCombatActionSelection()
+	}
+}
+
+func letAiPlay() {
+	if puser2.Ai {
+		makeAiChoice()
+	}
+}
+
+func EndRound() {
+	if GetActivePokemonAsPokemon(puser2).Hp <= 0 {
+		if !hasRemainingPokemon(&puser2) {
+			os.Exit(1)
+		}
+		ChangeIAPokemon(&puser2)
+	}
+	if GetActivePokemonAsPokemon(puser1).Hp <= 0 {
+		if !hasRemainingPokemon(&puser1) {
+			os.Exit(1)
+		}
+		SwitchToPokemonSelectionAfterCombat(&puser1)
 		return
 	}
-	flex.Clear()
-	flex.SetDirection(tview.FlexRow)
-	flex.AddItem(BuildCliLogoItem(), 19, 1, false)
-	bodyFlex := tview.NewFlex().SetDirection(tview.FlexColumn)
-	bodyFlex.AddItem(BuildSelectionViewListItem(false).SetDirection(tview.FlexRow), 0, 1, false)
-	bodyFlex.AddItem(BuildPokemonInfoFlexItem().SetDirection(tview.FlexRow), 0, 1, false)
-	bodyFlex.AddItem(BuildSelectedViewListItem(true), 0, 1, true)
-	bodyFlex.AddItem(BuildHelpText(), 0, 1, false)
-	flex.AddItem(bodyFlex, 0, 1, true)
-	app.SetRoot(flex, true)
-	UpdatePokeText(pokemonsSelected[0])
-}
-
-func switchToSelectionPokemons() {
-	isSearching = false
-	flex.Clear()
-	flex.SetDirection(tview.FlexRow)
-	flex.AddItem(BuildCliLogoItem(), 19, 1, false)
-	bodyFlex := tview.NewFlex().SetDirection(tview.FlexColumn)
-	bodyFlex.AddItem(BuildSelectionViewListItem(true).SetDirection(tview.FlexRow), 0, 1, true)
-	bodyFlex.AddItem(BuildPokemonInfoFlexItem().SetDirection(tview.FlexRow), 0, 1, false)
-	bodyFlex.AddItem(BuildSelectedViewListItem(false), 0, 1, false)
-	bodyFlex.AddItem(BuildHelpText(), 0, 1, false)
-	flex.AddItem(bodyFlex, 0, 1, true)
-	app.SetRoot(flex, true)
-	UpdatePokeText(pokemons[0])
-}
-
-func switchToSearchPokemon(search bool) {
-	isSearching = search
-	flex.Clear()
-	UpdatePokeList(pokemonsTrimed, pokemonsTrimedViewList)
-	app.SetRoot(flex.SetDirection(tview.FlexRow).
-		AddItem(tview.NewTextArea().SetText(GetPokeCliLogo()+"\n", false), 19, 1, false).
-		AddItem(tview.NewFlex().SetDirection(tview.FlexColumn).
-			AddItem(tview.NewFlex().SetDirection(tview.FlexRow).
-				AddItem(tview.NewTextView().SetText("Selection De pokemons"), 0, 0, false).
-				AddItem(pokemonsViewList.SetSelectedBackgroundColor(tcell.ColorAntiqueWhite), 0, 1, false), 0, 1, false).
-			AddItem(tview.NewFlex().SetDirection(tview.FlexRow).
-				AddItem(pokemonAsciiArt, 0, 1, false).
-				AddItem(pokeText, 0, 1, false), 0, 1, false).
-			AddItem(pokemonsSelectedViewList.SetSelectedBackgroundColor(tcell.ColorAntiqueWhite), 0, 1, false).
-			AddItem(tview.NewFlex().SetDirection(tview.FlexRow).
-				AddItem(helpText, 0, 1, false).
-				AddItem(tview.NewInputField().SetText(trimSearch).SetChangedFunc(func(currentText string) {
-					trimSearch = currentText
-					pokemonsTrimed = trimByString(trimSearch, pokemons)
-					switchToSearchPokemon(search)
-				}), 0, 1, search).
-				AddItem(pokemonsTrimedViewList.SetSelectedBackgroundColor(tcell.ColorOrange), 0, 1, !search), 0, 1, true), 0, 1, true), true)
-}
-
-func SwitchToCombatActionSelection() {
-
-	flex.Clear()
-	flex.SetDirection(tview.FlexRow)
-	flex.AddItem(BuildCliLogoItem(), 19, 1, false)
-	bodyFlex := tview.NewFlex().SetDirection(tview.FlexColumn)
-	bodyFlex.AddItem(tview.NewTextView().SetText("Le combat va commencer..."), 0, 1, true)
-	flex.AddItem(bodyFlex, 0, 1, true)
-	app.SetRoot(flex, true)
-
-	callTimer()
-
-	actionList := tview.NewList().AddItem("Attaquer", "", '*', func() {}).AddItem("Changer de pokemon", "", '*', func() {}).AddItem("Utiliser un objets", "", '*', func() {})
-	flex.Clear()
-	flex.SetDirection(tview.FlexRow)
-	flex.AddItem(BuildCliLogoItem(), 19, 1, false)
-	bodyFlex = tview.NewFlex().SetDirection(tview.FlexColumn)
-	bodyFlex.AddItem(actionList, 0, 1, true)
-	flex.AddItem(bodyFlex, 0, 1, true)
-	app.SetRoot(flex, true)
-
-}
-
-func callTimer() {
-	timer := time.NewTimer(time.Second)
-	<-timer.C
+	startRound()
 }
 
 func trimByString(search string, list []pokemon_cli.Pokemon) []pokemon_cli.Pokemon {
@@ -146,7 +90,7 @@ func trimByString(search string, list []pokemon_cli.Pokemon) []pokemon_cli.Pokem
 	return pokemonsTrimed
 }
 
-func castMapToSliceOf() []pokemon_cli.Pokemon {
+func CastMapToSliceOf() []pokemon_cli.Pokemon {
 	pokemons := map[string]map[string]interface{}{
 		"Bulbasaur": {
 			"Type":  []string{"Grass", "Poison"},
@@ -377,4 +321,39 @@ func castMapToSliceOf() []pokemon_cli.Pokemon {
 	}
 	SortTableByName(CleanPokemons)
 	return CleanPokemons
+}
+
+func CastMapToSliceOfPotions() []pokemon_cli.Potion {
+	potions := map[string]map[string]interface{}{
+		"Potion": {
+			"Description": "Heal 6 HP",
+			"Heal":        6,
+			"DropRate":    60,
+		},
+		"Super Potion": {
+			"Description": "Heal 10 HP",
+			"Heal":        10,
+			"DropRate":    20,
+		},
+		"Hyper Potion": {
+			"Description": "Heal 20 HP",
+			"Heal":        20,
+			"DropRate":    10,
+		},
+		"Full Restore": {
+			"Description": "Restore all HP and remove any status",
+			"Heal":        50,
+			"DropRate":    5,
+		},
+		"Revive": {
+			"Description": "Revive a Pokemon with half his life",
+			"Heal":        0,
+			"DropRate":    5,
+		},
+	}
+	CleanPotions := []pokemon_cli.Potion{}
+	for k, p := range potions {
+		CleanPotions = append(CleanPotions, pokemon_cli.Potion{k, p["Description"].(string), p["Heal"].(int), p["DropRate"].(int)})
+	}
+	return CleanPotions
 }

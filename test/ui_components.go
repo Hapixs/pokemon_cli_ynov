@@ -13,7 +13,7 @@ import (
 var app = tview.NewApplication()
 
 var pokemonsViewList = tview.NewList().ShowSecondaryText(true)
-var pokemons = castMapToSliceOf()
+var pokemons = CastMapToSliceOf()
 
 var pokemonsSelectedViewList = tview.NewList()
 var pokemonsSelected = []pokemon_cli.Pokemon{}
@@ -36,7 +36,8 @@ func PreparePokemonsViewList() {
 		UpdatePokeList(pokemons, pokemonsViewList)
 		UpdateViewListIndex(i, *pokemonsViewList)
 		if len(pokemonsSelected) == 5 {
-			SwitchToCombatActionSelection()
+			rdm := getRandomPokemonList()
+			startCombat(pokemon_cli.PokemonUser{0, pokemonsSelected, GeneratePotionInventory(), false}, pokemon_cli.PokemonUser{0, rdm, GeneratePotionInventory(), true})
 		}
 	})
 	pokemonsViewList.SetChangedFunc(func(index int, name string, second_name string, shortcut rune) {
@@ -60,6 +61,7 @@ func PreparePokemonsSelectedViewList() {
 		UpdatePokeText(pokemonsSelected[index])
 	})
 }
+
 func PrepareTrimedViewList() {
 	pokemonsTrimedViewList.SetSelectedFunc(func(i int, s1, s2 string, r rune) {
 		pokemonsSelected = append(pokemonsSelected, pokemonsTrimed[i])
@@ -71,26 +73,22 @@ func PrepareTrimedViewList() {
 				break
 			}
 			if len(pokemonsSelected) == 5 {
-				SwitchToCombatActionSelection()
+				rdm := getRandomPokemonList()
+				startCombat(pokemon_cli.PokemonUser{0, pokemonsSelected, GeneratePotionInventory(), false}, pokemon_cli.PokemonUser{0, rdm, GeneratePotionInventory(), true})
 			}
 		}
 		pokemonsTrimed = removeIndex(i, pokemonsTrimed)
 		UpdatePokeList(pokemonsTrimed, pokemonsTrimedViewList)
 		UpdateViewListIndex(i, *pokemonsTrimedViewList)
-
 	})
 	pokemonsTrimedViewList.SetChangedFunc(func(index int, mainText, secondaryText string, shortcut rune) {
 		UpdatePokeText(pokemonsTrimed[index])
 	})
-
 }
 
 func UpdatePokeText(pok pokemon_cli.Pokemon) {
 	pokeText.Clear()
-	pokeText = pokeText.SetText("\nName: " + pok.Name +
-		"\nHp: " + strconv.Itoa(pok.Hp) + "/" + strconv.Itoa(pok.MaxHp) +
-		"\nDégats: " + strconv.Itoa(pok.Dmg) +
-		"\nTypes: " + parseTabe(pok.Type))
+	pokeText = pokeText.SetText(GetPokeText(pok))
 	pokemonAsciiArt.Clear()
 	pokemonAsciiArt.SetText(getPokemonImage(pok))
 }
@@ -100,6 +98,26 @@ func UpdatePokeList(list []pokemon_cli.Pokemon, tList *tview.List) {
 	for _, pok := range list {
 		tList.AddItem(pok.Name, "", '*', nil)
 	}
+}
+
+func UpdateViewListIndex(index int, viewList tview.List) {
+	if index >= len(pokemons)-1 {
+		pokemonsViewList.SetCurrentItem(len(pokemons) - 1)
+	} else if index > 0 {
+		pokemonsViewList.SetCurrentItem(index)
+	} else {
+		pokemonsViewList.SetCurrentItem(0)
+	}
+}
+
+func BuildActionList() *tview.List {
+	return tview.NewList().AddItem("Attaquer", "", '*', func() {
+		userAttackUser(&puser1, &puser2)
+	}).AddItem("Changer de pokemon", "", '*', func() {
+		userWantChangePokemon(&puser1)
+	}).AddItem("Utiliser un objets", "", '*', func() {
+		userWantUsePotion(&puser1)
+	})
 }
 
 func BuildCliLogoItem() *tview.TextArea {
@@ -122,8 +140,65 @@ func BuildHelpText() *tview.TextView {
 	return helpText
 }
 
+func BuildActivePokemon(user pokemon_cli.PokemonUser) *tview.Flex {
+	return tview.NewFlex().SetDirection(tview.FlexRow).
+		AddItem(tview.NewTextView().SetText(getPokemonImage(user.PokemonInventory[user.ActivePokemon])), 0, 1, false).
+		AddItem(tview.NewTextView().SetText(GetPokeText(user.PokemonInventory[user.ActivePokemon])), 0, 1, false)
+}
+
+func BuildPokemonSelectionInCombatListItem(user *pokemon_cli.PokemonUser) *tview.List {
+	tl := tview.NewList()
+	for _, c := range user.PokemonInventory {
+		tl.AddItem(c.Name, "", '*', nil)
+	}
+	tl.SetSelectedFunc(func(i int, s1, s2 string, r rune) {
+		userChangePokemon(user, i, true)
+	})
+	return tl
+}
+
+func BuildPokemonSelectionAfterCombatListItem(user *pokemon_cli.PokemonUser) *tview.List {
+	tl := tview.NewList()
+	for _, c := range user.PokemonInventory {
+		tl.AddItem(c.Name, "", '*', nil)
+	}
+	tl.SetSelectedFunc(func(i int, s1, s2 string, r rune) {
+		userChangePokemon(user, i, false)
+	})
+	return tl
+}
+
+func BuildPotionSelectionInCombatListItem(user *pokemon_cli.PokemonUser) *tview.List {
+	tl := tview.NewList()
+	for _, c := range user.ObjectInventory {
+		tl.AddItem(c.Name, "", '*', nil)
+	}
+	tl.SetSelectedFunc(func(i int, s1, s2 string, r rune) {
+		userSelectedPotion(user, i)
+	})
+	return tl
+}
+
+func BuildPokemonSelectionForPotionInCombatListItem(user *pokemon_cli.PokemonUser, potionIndex int) *tview.List {
+	tl := tview.NewList()
+	for _, c := range user.PokemonInventory {
+		tl.AddItem(c.Name, "", '*', nil)
+	}
+	tl.SetSelectedFunc(func(i int, s1, s2 string, r rune) {
+		userUsePotionOnPokemon(user, potionIndex, i)
+	})
+	return tl
+}
+
 func GetListBackgroundColor(active bool) tcell.Color {
 	return map[bool]tcell.Color{true: tcell.ColorOrange, false: tcell.ColorAntiqueWhite}[active]
+}
+
+func GetPokeText(pok pokemon_cli.Pokemon) string {
+	return "\nName: " + pok.Name +
+		"\nHp: " + strconv.Itoa(pok.Hp) + "/" + strconv.Itoa(pok.MaxHp) +
+		"\nDégats: " + strconv.Itoa(pok.Dmg) +
+		"\nTypes: " + parseTabe(pok.Type)
 }
 
 func GetPokeCliLogo() string {
@@ -138,11 +213,9 @@ func GetPokeCliLogo() string {
 
 func getPokemonImage(pokemon pokemon_cli.Pokemon) string {
 	content, err := ioutil.ReadFile("assets/" + pokemon.Name + ".txt")
-
 	if err != nil {
 		return ""
 	}
-
 	return string(content)
 }
 

@@ -1,7 +1,7 @@
 package pokemon_cli
 
 type PokemonUser struct {
-	ActivePokemon    *Pokemon
+	ActivePokemon    int
 	PokemonInventory []Pokemon
 	ObjectInventory  []Potion
 	Ai               bool
@@ -18,9 +18,10 @@ type Pokemon struct {
 }
 
 type Potion struct {
-	Name     string
-	Heal     int
-	DropRate int
+	Name        string
+	Description string
+	Heal        int
+	DropRate    int
 }
 
 type Effect struct {
