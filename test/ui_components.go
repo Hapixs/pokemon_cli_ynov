@@ -219,7 +219,6 @@ func getPokemonImage(pokemon pokemon_cli.Pokemon) string {
 	return string(content)
 }
 
-
 // func getReversePokemonImage(pokemon pokemon_cli.Pokemon) string {
 // 	content, err := ioutil.ReadFile("assets/" + pokemon.Name + ".txt")
 // 	if err != nil {
