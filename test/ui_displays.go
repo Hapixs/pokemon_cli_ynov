@@ -8,6 +8,9 @@ import (
 )
 
 func switchToSelectedPokemons() {
+
+	// je sais pas
+
 	isSearching = false
 	if len(pokemonsSelected) <= 0 {
 		switchToSelectionPokemons()
